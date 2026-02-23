@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>StudyScroll</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    /* ── Reset & base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0f0f13;
+      --surface:   #1a1a24;
+      --border:    #2a2a38;
+      --accent:    #7c6af7;
+      --accent2:   #f76ab4;
+      --text:      #e8e8f0;
+      --muted:     #7878a0;
+      --quiz-bg:   #1a1228;
+      --quiz-acc:  #f76ab4;
+
+      --type-concept:   #7c6af7;
+      --type-analogy:   #4ecdc4;
+      --type-example:   #45b69c;
+      --type-deep_dive: #f7a76a;
+      --type-quiz:      #f76ab4;
+      --type-summary:   #7c6af7;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      overscroll-behavior: none;
+    }
+
+    /* ── Header ── */
+    #header {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      padding: 14px 20px 10px;
+      background: linear-gradient(to bottom, var(--bg) 70%, transparent);
+    }
+
+    #topic-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+    }
+
+    #topic-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      margin-top: 2px;
+    }
+
+    #progress-bar {
+      height: 2px;
+      background: var(--border);
+      border-radius: 2px;
+      margin-top: 10px;
+      overflow: hidden;
+    }
+
+    #progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 2px;
+      transition: width 0.3s ease;
+    }
+
+    /* ── Card feed ── */
+    #feed {
+      padding: 110px 16px 160px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+      animation: slideUp 0.4s ease both;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0;
+      width: 3px; height: 100%;
+      background: var(--card-color, var(--accent));
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .card-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--card-color, var(--accent));
+      margin-bottom: 10px;
+    }
+
+    .card-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 8px;
+      line-height: 1.35;
+    }
+
+    .card-body {
+      font-size: 14px;
+      color: #b8b8d0;
+      line-height: 1.65;
+    }
+
+    /* ── Quiz card ── */
+    .card.quiz {
+      background: var(--quiz-bg);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .quiz-question {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1.45;
+      margin-bottom: 14px;
+    }
+
+    .quiz-tap-hint {
+      font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .quiz-answer {
+      display: none;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+    }
+
+    .quiz-answer.revealed {
+      display: block;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .quiz-answer-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--quiz-acc);
+      margin-bottom: 6px;
+    }
+
+    .quiz-answer-text {
+      font-size: 14px;
+      color: #b8b8d0;
+      line-height: 1.6;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+
+    /* ── Summary card ── */
+    .card.summary {
+      background: linear-gradient(135deg, #1a1224, #1a1a24);
+      border-color: var(--accent);
+    }
+
+    /* ── Audio player ── */
+    #player {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      z-index: 100;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 12px 20px 20px;
+    }
+
+    #player-topic {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    #player-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    #play-btn {
+      width: 42px; height: 42px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: none;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: transform 0.1s;
+    }
+
+    #play-btn:active { transform: scale(0.93); }
+
+    #play-btn svg { width: 18px; height: 18px; fill: white; }
+
+    #player-timeline {
+      flex: 1;
+    }
+
+    #timeline-bar {
+      width: 100%;
+      height: 3px;
+      background: var(--border);
+      border-radius: 3px;
+      cursor: pointer;
+      position: relative;
+      margin-bottom: 4px;
+    }
+
+    #timeline-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 3px;
+      pointer-events: none;
+    }
+
+    #player-time {
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    #speed-btn {
+      background: var(--border);
+      border: none;
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    /* ── Loading ── */
+    #loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      gap: 16px;
+    }
+
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #loading p {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    #error {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      gap: 12px;
+      padding: 32px;
+      text-align: center;
+    }
+
+    #error h2 { color: var(--text); }
+    #error p  { color: var(--muted); font-size: 14px; }
+  </style>
+</head>
+<body>
+
+  <div id="loading">
+    <div class="spinner"></div>
+    <p>Loading your study feed…</p>
+  </div>
+
+  <div id="error">
+    <h2>Something went wrong</h2>
+    <p id="error-msg">Could not load session.</p>
+  </div>
+
+  <!-- Main content (hidden until loaded) -->
+  <div id="app" style="display:none">
+    <div id="header">
+      <div id="topic-label">Study Feed</div>
+      <div id="topic-title"></div>
+      <div id="progress-bar"><div id="progress-fill"></div></div>
+    </div>
+
+    <div id="feed"></div>
+
+    <div id="player">
+      <div id="player-topic">🎧 Audio summary</div>
+      <div id="player-controls">
+        <button id="play-btn">
+          <svg id="icon-play"  viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+          <svg id="icon-pause" viewBox="0 0 24 24" style="display:none"><path d="M6 19h4V5H6zm8-14v14h4V5z"/></svg>
+        </button>
+        <div id="player-timeline">
+          <div id="timeline-bar">
+            <div id="timeline-fill"></div>
+          </div>
+          <div id="player-time">
+            <span id="time-current">0:00</span>
+            <span id="time-total">0:00</span>
+          </div>
+        </div>
+        <button id="speed-btn">1×</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── Telegram WebApp init ──────────────────────────────────────────────────
+    const tg = window.Telegram?.WebApp;
+    if (tg) {
+      tg.ready();
+      tg.expand();
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    const $ = id => document.getElementById(id);
+
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      return `${m}:${s.toString().padStart(2, '0')}`;
+    }
+
+    const CARD_META = {
+      concept:   { label: '📌 Concept',   color: '#7c6af7' },
+      analogy:   { label: '🔗 Analogy',   color: '#4ecdc4' },
+      example:   { label: '💡 Example',   color: '#45b69c' },
+      deep_dive: { label: '🔬 Deep Dive', color: '#f7a76a' },
+      quiz:      { label: '🧠 Quiz',      color: '#f76ab4' },
+      summary:   { label: '✅ Summary',   color: '#7c6af7' },
+    };
+
+    // ── Card renderers ────────────────────────────────────────────────────────
+    function renderCard(card, index) {
+      const meta = CARD_META[card.type] || CARD_META.concept;
+      const el = document.createElement('div');
+      el.className = `card ${card.type}`;
+      el.style.setProperty('--card-color', meta.color);
+      el.style.animationDelay = `${index * 40}ms`;
+
+      if (card.type === 'quiz') {
+        el.innerHTML = `
+          <div class="card-badge">${meta.label}</div>
+          <div class="quiz-question">${card.question}</div>
+          <div class="quiz-tap-hint">👆 Tap to reveal answer</div>
+          <div class="quiz-answer">
+            <div class="quiz-answer-label">Answer</div>
+            <div class="quiz-answer-text">${card.answer}</div>
+          </div>`;
+        el.addEventListener('click', () => {
+          const ans = el.querySelector('.quiz-answer');
+          const hint = el.querySelector('.quiz-tap-hint');
+          ans.classList.toggle('revealed');
+          hint.style.display = ans.classList.contains('revealed') ? 'none' : 'flex';
+        });
+      } else {
+        el.innerHTML = `
+          <div class="card-badge">${meta.label}</div>
+          <div class="card-title">${card.title}</div>
+          <div class="card-body">${card.body}</div>`;
+      }
+
+      return el;
+    }
+
+    // ── Progress tracking ─────────────────────────────────────────────────────
+    function setupScrollProgress(totalCards) {
+      const feed = $('feed');
+      const fill = $('progress-fill');
+
+      const observer = new IntersectionObserver(entries => {
+        let maxVisible = 0;
+        entries.forEach(e => {
+          if (e.isIntersecting) {
+            const idx = parseInt(e.target.dataset.index);
+            if (idx > maxVisible) maxVisible = idx;
+          }
+        });
+        const pct = Math.round((maxVisible / (totalCards - 1)) * 100);
+        fill.style.width = pct + '%';
+      }, { threshold: 0.5 });
+
+      feed.querySelectorAll('.card').forEach((el, i) => {
+        el.dataset.index = i;
+        observer.observe(el);
+      });
+    }
+
+    // ── Audio player ──────────────────────────────────────────────────────────
+    let audio = null;
+    const speeds = [1, 1.25, 1.5, 2];
+    let speedIdx = 0;
+
+    function setupPlayer(sessionId) {
+      audio = new Audio(`/api/session/${sessionId}/audio`);
+      audio.preload = 'metadata';
+
+      const playBtn  = $('play-btn');
+      const iconPlay  = $('icon-play');
+      const iconPause = $('icon-pause');
+      const fill      = $('timeline-fill');
+      const bar       = $('timeline-bar');
+      const timeCur   = $('time-current');
+      const timeTotal = $('time-total');
+      const speedBtn  = $('speed-btn');
+
+      audio.addEventListener('loadedmetadata', () => {
+        timeTotal.textContent = formatTime(audio.duration);
+      });
+
+      audio.addEventListener('timeupdate', () => {
+        const pct = (audio.currentTime / audio.duration) * 100;
+        fill.style.width = pct + '%';
+        timeCur.textContent = formatTime(audio.currentTime);
+      });
+
+      audio.addEventListener('ended', () => {
+        iconPlay.style.display = '';
+        iconPause.style.display = 'none';
+      });
+
+      playBtn.addEventListener('click', () => {
+        if (audio.paused) {
+          audio.play();
+          iconPlay.style.display = 'none';
+          iconPause.style.display = '';
+        } else {
+          audio.pause();
+          iconPlay.style.display = '';
+          iconPause.style.display = 'none';
+        }
+      });
+
+      bar.addEventListener('click', e => {
+        const rect = bar.getBoundingClientRect();
+        const pct  = (e.clientX - rect.left) / rect.width;
+        audio.currentTime = pct * audio.duration;
+      });
+
+      speedBtn.addEventListener('click', () => {
+        speedIdx = (speedIdx + 1) % speeds.length;
+        audio.playbackRate = speeds[speedIdx];
+        speedBtn.textContent = speeds[speedIdx] + '×';
+      });
+    }
+
+    // ── Main init ─────────────────────────────────────────────────────────────
+    async function init() {
+      const params = new URLSearchParams(window.location.search);
+      const sessionId = params.get('session');
+
+      if (!sessionId) {
+        showError('No session ID provided.');
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/session/${sessionId}`);
+        if (!res.ok) throw new Error('Session not found');
+        const { topic, cards } = await res.json();
+
+        // Populate header
+        $('topic-title').textContent = topic;
+
+        // Render cards
+        const feed = $('feed');
+        cards.forEach((card, i) => feed.appendChild(renderCard(card, i)));
+
+        // Setup interactions
+        setupScrollProgress(cards.length);
+        setupPlayer(sessionId);
+
+        // Show app
+        $('loading').style.display = 'none';
+        $('app').style.display = 'block';
+
+      } catch (err) {
+        showError(err.message);
+      }
+    }
+
+    function showError(msg) {
+      $('loading').style.display = 'none';
+      $('error').style.display = 'flex';
+      $('error-msg').textContent = msg;
+    }
+
+    init();
+  </script>
+</body>
+</html>
