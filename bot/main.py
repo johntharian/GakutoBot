@@ -68,26 +68,14 @@ async def handle_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # 2. Create session (saves JSON)
         session_id = create_session(topic, cards)
 
-        # 3. Generate audio
-        await status_msg.edit_text(
-            "🎧 Generating audio…",
-            parse_mode="Markdown"
-        )
-        script = cards_to_audio_script(topic, cards)
-        audio_path = str(SESSIONS_DIR / f"{session_id}.mp3")
-        await generate_audio(script, audio_path)
-        logger.info(f"Audio saved: {audio_path}")
-
-        # 4. Build the Mini App URL
+        # 3. Build the Mini App URL and send it immediately
         webapp_url = f"{WEBAPP_BASE_URL}?session={session_id}"
-
-        # 5. Send the reply with Mini App button
         await status_msg.delete()
         await update.message.reply_text(
             f"✅ Your study feed is ready!\n\n"
             f"📖 *{topic}*\n"
             f"• {len(cards)} cards\n"
-            f"• Audio summary included\n\n"
+            f"• 🎧 Audio generating…\n\n"
             f"Tap below to open your scroll feed 👇",
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup([[
@@ -98,12 +86,23 @@ async def handle_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]])
         )
 
-        # Also send the audio as a Telegram voice message (bonus!)
-        await update.message.reply_audio(
-            audio=open(audio_path, "rb"),
-            title=f"Study: {topic}",
-            caption="🎧 Audio version — listen while you scroll!"
-        )
+        # 4. Generate audio in the background, then send it
+        try:
+            script = cards_to_audio_script(topic, cards)
+            audio_path = str(SESSIONS_DIR / f"{session_id}.mp3")
+            await generate_audio(script, audio_path)
+            logger.info(f"Audio saved: {audio_path}")
+
+            await update.message.reply_audio(
+                audio=open(audio_path, "rb"),
+                title=f"Study: {topic}",
+                caption="🎧 Audio version — listen while you scroll!"
+            )
+        except Exception as audio_err:
+            logger.exception(f"Audio generation failed for {session_id}: {audio_err}")
+            await update.message.reply_text(
+                "⚠️ Audio generation failed, but your cards are still available!",
+            )
 
     except Exception as e:
         logger.exception(f"Failed to generate session for topic: {topic}")

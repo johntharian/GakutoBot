@@ -63,6 +63,13 @@ async def get_audio(session_id: str):
     )
 
 
+@app.get("/api/session/{session_id}/audio/status")
+async def get_audio_status(session_id: str):
+    """Check if the audio file has been generated yet."""
+    audio_path = SESSIONS_DIR / f"{session_id}.mp3"
+    return {"ready": audio_path.exists()}
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
