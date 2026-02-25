@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from generator.content import generate_study_cards, cards_to_audio_script
 from generator.audio import generate_audio
-from api.server import create_session
+from storage import create_session, save_audio, get_local_audio_path
 
 load_dotenv()
 
@@ -23,7 +23,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-SESSIONS_DIR = Path(__file__).parent.parent / "storage" / "sessions"
 WEBAPP_BASE_URL = os.getenv("WEBAPP_BASE_URL", "http://localhost:8000")
 
 
@@ -89,8 +88,9 @@ async def handle_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # 4. Generate audio in the background, then send it
         try:
             script = cards_to_audio_script(topic, cards)
-            audio_path = str(SESSIONS_DIR / f"{session_id}.mp3")
+            audio_path = get_local_audio_path(session_id)
             await generate_audio(script, audio_path)
+            save_audio(session_id, audio_path)
             logger.info(f"Audio saved: {audio_path}")
 
             await update.message.reply_audio(

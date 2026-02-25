@@ -1,6 +1,7 @@
 python-telegram-bot==21.5
 anthropic==0.34.2
 google-genai==0.6.0
+google-cloud-storage==2.18.2
 fastapi==0.115.0
 uvicorn==0.30.6
 python-multipart==0.0.12
