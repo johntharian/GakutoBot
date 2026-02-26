@@ -1,10 +1,8 @@
-import asyncio
 import logging
 import os
 import sys
 from pathlib import Path
 
-from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
@@ -15,12 +13,6 @@ from generator.content import generate_study_cards, cards_to_audio_script
 from generator.audio import generate_audio
 from storage import create_session, save_audio, get_local_audio_path
 
-load_dotenv()
-
-logging.basicConfig(
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    level=logging.INFO
-)
 logger = logging.getLogger(__name__)
 
 WEBAPP_BASE_URL = os.getenv("WEBAPP_BASE_URL", "http://localhost:8000")
@@ -118,12 +110,13 @@ async def handle_unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-# ── Main ──────────────────────────────────────────────────────────────────────
+# ── Build the Telegram Application ───────────────────────────────────────────
 
-def main():
+def build_bot_app() -> Application:
+    """Create and configure the Telegram bot application (without starting it)."""
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not token:
-        raise ValueError("TELEGRAM_BOT_TOKEN not set in .env")
+        raise ValueError("TELEGRAM_BOT_TOKEN not set")
 
     app = Application.builder().token(token).build()
 
@@ -131,9 +124,4 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_topic))
     app.add_handler(MessageHandler(filters.COMMAND, handle_unknown))
 
-    logger.info("StudyScroll bot is running...")
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
-
-
-if __name__ == "__main__":
-    main()
+    return app
