@@ -13,7 +13,7 @@ from generator.content import generate_study_cards, cards_to_audio_script
 from generator.audio import generate_audio
 from storage import create_session, save_audio, get_local_audio_path
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("studyscroll.bot")
 
 WEBAPP_BASE_URL = os.getenv("WEBAPP_BASE_URL", "http://localhost:8000")
 
@@ -21,6 +21,7 @@ WEBAPP_BASE_URL = os.getenv("WEBAPP_BASE_URL", "http://localhost:8000")
 # ── Handlers ──────────────────────────────────────────────────────────────────
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info(f"/start command from user {update.message.from_user.id}")
     await update.message.reply_text(
         "👋 Welcome to *StudyScroll*!\n\n"
         "Send me any topic or question and I'll turn it into a scroll-friendly study feed with audio.\n\n"
@@ -35,6 +36,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
     topic = update.message.text.strip()
+    logger.info(f"Topic request from user {update.message.from_user.id}: '{topic}'")
 
     if len(topic) < 3:
         await update.message.reply_text("Please send a topic with at least a few words!")
