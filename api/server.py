@@ -1,5 +1,7 @@
+import asyncio
 import logging
 import os
+from collections import OrderedDict
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -21,6 +23,10 @@ bot_app = build_bot_app()
 WEBHOOK_PATH = "/webhook"
 WEBAPP_BASE_URL = os.getenv("WEBAPP_BASE_URL", "http://localhost:8000")
 WEBHOOK_URL = f"{WEBAPP_BASE_URL}{WEBHOOK_PATH}"
+
+# Track recently processed update IDs to prevent duplicates from Telegram retries
+_processed_updates: OrderedDict[int, bool] = OrderedDict()
+MAX_TRACKED_UPDATES = 1000
 
 
 # ── FastAPI lifespan — register webhook on startup ────────────────────────────
@@ -53,11 +59,31 @@ app.add_middleware(
 
 @app.post(WEBHOOK_PATH)
 async def telegram_webhook(request: Request):
-    """Receive updates from Telegram and process them."""
+    """Receive updates from Telegram — respond immediately, process in background."""
     data = await request.json()
     update = Update.de_json(data, bot_app.bot)
-    await bot_app.process_update(update)
+
+    # Deduplicate: skip if we've already seen this update
+    if update.update_id in _processed_updates:
+        logger.info(f"Skipping duplicate update {update.update_id}")
+        return {"ok": True}
+
+    # Mark as seen (and cap the set size)
+    _processed_updates[update.update_id] = True
+    if len(_processed_updates) > MAX_TRACKED_UPDATES:
+        _processed_updates.popitem(last=False)
+
+    # Fire-and-forget: process in background so Telegram gets 200 OK instantly
+    asyncio.create_task(_process_update_safe(update))
     return {"ok": True}
+
+
+async def _process_update_safe(update: Update):
+    """Wrapper to catch and log errors from background processing."""
+    try:
+        await bot_app.process_update(update)
+    except Exception:
+        logger.exception(f"Error processing update {update.update_id}")
 
 
 # ── API routes ─────────────────────────────────────────────────────────────────
